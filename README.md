@@ -63,3 +63,31 @@ Update流程例子
 redo log 的写入拆成了两个步骤：prepare 和commit，这就是"**两阶段提交**"  
 保证数据库的状态和用它的日志恢复出来的库的状态保持一致
 ![update_flow_sample](images/update_flow_sample.png)
+
+## [03 | 事务隔离：为什么你改了我还看不见？](https://time.geekbang.org/column/article/68963)
+
+- SQL 标准的事务(transaction)隔离级别  
+**※show variables 可查看参数 transaction-isolation 的值**
+
+  1. 读未提交（read uncommitted）
+    - 一个事务还没提交(commit)时，它做的变更就能被别的事务看到
+  2. 读提交（read committed
+    - 一个事务提交之后，它做的变更才会被其他事务看到
+  3. 可重复读（repeatable read）
+    - 一个事务执行过程中看到的数据，总是跟这个事务在启动时看到的数据是一致的
+    - 未提交变更对其他事务也是不可见的
+  4. 串行化（serializable ）
+    - 对于同一行记录，“写”会加“写锁”，“读”会加“读锁”
+    - 当出现读写锁冲突的时候，后访问的事务必须等前一个事务执行完成，才能继续执行
+
+- MySQL 的事务启动方式有以下两种
+  1. begin 或 start transaction ,配套的提交语句是 commit，回滚语句是 rollback
+  2. set autocommit=0，这个命令会将这个线程的自动提交关掉
+    - **注意**: 有些客户端连接框架会默认连接成功后先执行一个 set autocommit=0 的命令。
+    - 建议使用 set autocommit=1 和 [commit work and chain](https://dev.mysql.com/doc/refman/5.6/ja/commit.html)（提交事务后自动启动下一个事务)
+
+- **查询长事务**
+  - 示例：用information_schema 库的 **innodb_trx** 查找持续时间超过 60s 的事务
+```
+select * from information_schema.innodb_trx where TIME_TO_SEC(timediff(now(),trx_started))>60
+```
