@@ -32,3 +32,34 @@
 - 执行器
   - 判断执行查询的权限
   - 根据表的引擎定义，使用引擎提供的接口
+
+## [02 | 日志系统：一条SQL更新语句是如何执行的？](https://time.geekbang.org/column/article/68633)
+
+[Write-Ahead Logging](https://ja.wikipedia.org/wiki/%E3%83%AD%E3%82%B0%E5%85%88%E8%A1%8C%E6%9B%B8%E3%81%8D%E8%BE%BC%E3%81%BF): **先写日志**，再写磁盘
+
+- redo log
+  - InnoDB特有日志
+  - 当一条记录需要更新时，InnoDB引擎会先把记录写到redo log里，然后更新内存，更新完成；InnoDB会在适当的时候将这个操作记录更新写入磁盘。
+  - redo log大小是固定的，使用如下图，从头开始写，写到末尾就又回到开头**循环写**  
+    write pos 是当前记录的位置  
+    checkpoint 是当前要擦除的位置  
+    write pos 追上 checkpoint 时，这时候不能再执行新的更新，得停下来先擦掉一些记录
+  - **crash-safe**: 保证即使数据库发生异常重启，之前提交的记录都不会丢失
+  ![redo_log](images/redo_log.png)
+
+
+- bin log 和 redo log的区别
+  - bin log是server层的日志，所以引擎都可以用；redo log是InnoDB引擎特有的。
+  - redo log 是物理日志，记录的是“在某个数据页上做了什么修改”；binlog 是逻辑日志，记录的是这个语句的原始逻辑，比如“给 ID=2 这一行的 c 字段加 1 ”。
+  - redo log 是循环写的，空间固定会用完； binlog 是可以追加写入的。
+
+
+```
+mysql> create table T(ID int primary key, c int);
+
+mysql> update T set c=c+1 where ID=2;
+```
+Update流程例子  
+redo log 的写入拆成了两个步骤：prepare 和commit，这就是"**两阶段提交**"  
+保证数据库的状态和用它的日志恢复出来的库的状态保持一致
+![update_flow_sample](images/update_flow_sample.png)
