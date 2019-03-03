@@ -123,3 +123,51 @@ InnoDB 的 [B+树](https://techlife.cookpad.com/entry/2017/04/18/092524)
 - 参考资料
   - [B TreeとB+ Treeの違い](https://christina04.hatenablog.com/entry/2017/05/17/190000)
   - [ヤフー社内でやってるMySQLチューニングセミナー大公開](https://www.slideshare.net/techblogyahoo/mysql-58540246)
+
+## [05 | 深入浅出索引（下）](https://time.geekbang.org/column/article/69636)
+
+- 覆盖索引: (查询字段已经在索引里)无需 **回表** 的索引
+- 联合索引: 根据创建联合索引的顺序，以最左原则进行where检索
+  - 最左前缀 → 联合索引的最左 N 个字段，也可以是字符串索引的最左 M 个字符
+- 索引下推:
+  - MySQL 5.6 引入的索引下推优化（index condition pushdown）
+  - 可以在索引遍历过程中，对索引中包含的字段先做判断，直接过滤掉不满足条件的记录，减少回表次数
+
+## [06 | 全局锁和表锁 ：给表加个字段怎么有这么多阻碍？](https://time.geekbang.org/column/article/69862)
+
+MySQL里面的锁: 全局锁，表级锁，行锁
+
+- 全局锁
+  - 对真个数据库加锁，命令是 Flush tables with read lock(FTWRL)
+  - 典型使用场景是，做全库逻辑备份
+
+官方逻辑备份工具 mysqldump,当使用 **参数–single-transaction** 的时候，导数据之前就会启动一个事务，来确保拿到 **一致性视图**。由于 **MVCC** 的支持, 这个过程中**数据是可以正常更新**
+
+- 表级锁(2种)
+  - 表锁
+    - 语法: lock tables … read/write
+    - 释放锁的方式： unlock tables主动释放；客户端断开时自动释放
+    - 不仅影响其他线程，也影响自己
+  - 元数据锁(meta data lock: MDL)
+    - MySQL v5.5时引入MDL
+    - (系统默认自动加)当对一个表做增删改查操作的时候，加 MDL 读锁；当要对表做结构变更操作的时候，加 MDL 写锁
+    - **读锁之间不互斥**，因此你可以有多个线程同时对一张表增删改查
+    - **读写锁之间、写锁之间是互斥的**
+
+
+![table_lock_problem](images/table_lock_problem.png)
+- sessionA 执行 **begin**, select语句时自动加读锁
+- sessionB 执行select语句时自动加读锁，读锁之间不互斥，没有影响
+- sessionC 执行alter语句时加写锁，因与sessionA，sessionB的读锁互斥，需等待sessionA，sessionB解锁
+- sessionD 执行select语句时自动加读锁，因与sessionC的写锁互斥，需等待sessionC解锁
+- **★ 如果该表查询语句频繁，且客户端有重试机制的话，这个数据库的线程很快就会爆满**
+  - ★★避免该问题的方法： **在 alter table 语句里面设定等待时间**
+
+
+
+
+
+
+
+
+.
