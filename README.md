@@ -91,3 +91,35 @@ redo log 的写入拆成了两个步骤：prepare 和commit，这就是"**两阶
 ```
 select * from information_schema.innodb_trx where TIME_TO_SEC(timediff(now(),trx_started))>60
 ```
+
+## [04 | 深入浅出索引（上）](https://time.geekbang.org/column/article/69236)
+
+InnoDB 使用 **B+ 树** 索引模型，数据都存储在 B+ 树中的
+
+- 每一个索引在 InnoDB 里面对应一棵 B+ 树
+  - 主键索引(**clustered index**)的叶子节点存的是 **整行数据**
+  - 非主键索引(**secondary index**)的叶子节点内容是 **主键的值**
+
+
+- 示例
+```
+mysql> create table T(
+id int primary key,
+k int not null,
+name varchar(16),
+index (k))engine=InnoDB;
+```
+表中 R1~R5 的 (ID,k) 值分别为 (100,1、(200,2)、(300,3)、(500,5) 和 (600,6)
+![innoDB_b+_tree](images/innoDB_b+_tree.png)
+
+
+- 基于主键索引和普通索引的查询的区别
+  - select * from T where ID=500, 即主键查询方式，则只需要搜索 ID 这棵 B+ 树
+  - select * from T where k=5，即普通索引查询方式，则需要先搜索 k 索引树得到 ID 的值为 500，再到 ID 索引树搜索一次。这个过程称为 **回表**
+
+
+InnoDB 的 [B+树](https://techlife.cookpad.com/entry/2017/04/18/092524)
+
+- 参考资料
+  - [B TreeとB+ Treeの違い](https://christina04.hatenablog.com/entry/2017/05/17/190000)
+  - [ヤフー社内でやってるMySQLチューニングセミナー大公開](https://www.slideshare.net/techblogyahoo/mysql-58540246)
