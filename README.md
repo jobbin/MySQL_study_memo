@@ -164,6 +164,24 @@ MySQL里面的锁: 全局锁，表级锁，行锁
   - ★★避免该问题的方法： **在 alter table 语句里面设定等待时间**
 
 
+## [07 | 行锁功过：怎么减少行锁对性能的影响？](https://time.geekbang.org/column/article/70215)
+
+MySQL的行锁是在引擎层由各引擎实现，InnoDB有行锁
+
+在InnoDB事务中，行锁是在需要的时候加上，在事务结束时释放
+
+- 死锁
+  - 线程都进入无限等待的状态
+  - 死锁的列子
+  ![deadlock_sample](images/deadlock_sample.png)
+
+
+- 对应死锁的策略
+  - 设置超时时间参数: innodb_lock_wait_timeout(InnoDB默认值为50s)
+  - 死锁检测(参数 innodb_deadlock_detect = on)，发现死锁后，主动回滚死锁链条中的某一个事务。  
+  需注意CPU消耗问题
+
+
 
 
 
