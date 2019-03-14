@@ -181,6 +181,62 @@ MySQL的行锁是在引擎层由各引擎实现，InnoDB有行锁
   - 死锁检测(参数 innodb_deadlock_detect = on)，发现死锁后，主动回滚死锁链条中的某一个事务。  
   需注意CPU消耗问题
 
+## [08 | 事务到底是隔离的还是不隔离的？](https://time.geekbang.org/column/article/0?cid=139)
+
+- begin/start transaction 命令后，执行第一个操作 InnoDB 表的语句时事务才真正启动
+- 执行start transaction with consistent snapshot 后马上启动一个事务
+
+- MySQL 里，有两个“视图”的概念
+  - 一个是 view。它是一个用查询语句定义的虚拟表，在调用的时候执行查询语句并生成结果。创建视图的语法是 create view … ，而它的查询方法与表一样
+  - InnoDB 在实现 MVCC 时用到的一致性读视图，即 consistent read view， 用于支持 RC（Read Committed，读提交）和 RR（Repeatable Read，可重复读）隔离级别的实现
+
+
+- 一个数据版本，对于一个事务视图来说，除了自己的更新总是可见以外，有三种情况:
+  - 版本未提交，不可见
+  - 版本已提交，但是是在视图创建后提交的，不可见
+  - 版本已提交，而且是在视图创建前提交的，可见
+
+
+- 更新数据都是先读后写的，而这个读，只能读当前的值，称为“当前读”（current read）
+
+- 可重复读的核心就是一致性读（consistent read）; 而事务 **更新数据的时候，只能用当前读**。如果当前的记录的行锁被其他事务占用的话，就需要进入锁等待
+
+- 在可重复读隔离级别下，只需要在事务开始的时候创建一致性视图，之后事务里的其他查询都共用这个一致性视图
+- 在读提交隔离级别下，每一个语句执行前都会重新算出一个新的视图
+
+- InnoDB 的行数据有多个版本，每个数据版本有自己的 row trx_id，每个事务或者语句有自己的一致性视图
+- 普通查询语句是一致性读(consistent read view)，一致性读会根据 row trx_id和一致性视图确定数据版本的可见性
+  - 对于可重复读(RR: Repeatable Read)，查询只承认在事务启动前就已经提交完成的数据
+  - 对于读提交(RC: Read Committed)，查询只承认在语句启动前就已经提交完成的数据
+
+- **MySQL默认采用RR隔离级别**
+  - 更改mysql全局隔离级别为RC
+  ```
+  set global tx_isolation = 'READ-COMMITTED'
+  ```
+
+
+- 事务如何实现的MVCC
+  - (1)每个事务都有一个事务ID,叫做transaction id(严格递增)
+  - (2)事务在启动时,找到已提交的最大事务ID记为up_limit_id。
+  - (3)事务在更新一条语句时,比如id=1改为了id=2.会把id=1和该行之前的row trx_id写到undo log里,并且在数据页上把id的值改为2,并且把修改这条语句的transaction id记在该行行头
+  - (4)再定一个规矩,一个事务要查看一条数据时,必须先用该事务的up_limit_id与该行的transaction id做比对,
+  如果up_limit_id>=transaction id,那么可以看.如果up_limit_id<transaction id,则只能去undo log里去取。去undo log查找数据的时候,也需要做比对,必须up_limit_id>transaction id,才返回数据
+
+
+- 为什么rr能实现可重复读而rc不能,分两种情况
+  - (1)快照读的情况下,rr不能更新事务内的up_limit_id,而rc每次会把up_limit_id更新为快照读之前最新已提交事务的transaction id,则rc不能可重复读
+  - (2)当前读的情况下,rr是利用record lock+gap lock来实现的,而rc没有gap,所以rc不能可重复读
+
+
+- RR是通过事务启动时创建一致性识图来实现，RC是语句执行时创建一致性识图来实现。
+
+
+- 快照读(Snapshot Read)
+  - MySQL数据库，InnoDB存储引擎，为了提高并发，使用MVCC机制，在并发事务时，通过读取数据行的历史数据版本，不加锁，来提高并发的一种不加锁一致性读(Consistent Nonlocking Read)
+
+
+
 
 
 
