@@ -274,6 +274,36 @@ MySQL的行锁是在引擎层由各引擎实现，InnoDB有行锁
 
 - 统计的信息不正确时，可以通过 `analyze table <table_name>` 来重新统计索引信息。
 
+## 11 | 怎么给字符串字段加索引？
+
+- 为字符串(比如邮箱qiu*****@gmail.com)加索引时
+  - 直接加索引，只要回主键的取一次数据。但占用空间大
+  - 用前缀索引，必须选择合适的长度。可以用 一下方法
+    - 首先 ，用 `mysql> select count(distinct email) as L from <table_name>;` 来计算出列上有多少不同的值。
+    - 其次 `mysql> select 
+  count(distinct left(email,4)）as L4 from SUser;`
+    - 用 L 和 L4 的值来判断多少(比如95%)可以接受。
+
+- 用前缀索引是，遇到区分度不怎么好的情况(比如身份证编号)，可考虑一下方法
+  - 倒序存储
+    - `mysql> select field_list from t where id_card = reverse('input_id_card_string');`
+    - 
+  - 使用 hash 字段
+    - `mysql> alter table t add id_card_crc int unsigned, add index(id_card_crc);`
+
+- 倒序存储 和 使用 hash 字段 的异同点
+  - 相同点: 都不支持范围查询
+  - 不同点:
+    - 从占用的额外空间来看，倒序存储方式在主键索引上，不会消耗额外的存储空间，而 hash 字段方法需要增加一个字段
+    - 在 CPU 消耗方面，倒序方式每次写和读的时候，都需要额外调用一次 reverse 函数，而 hash 字段的方式需要额外调用一次 crc32() 函数。从计算复杂度来看的话，reverse 函数额外消耗的 CPU资源会更小些
+    - 从查询效率上看，使用 hash 字段方式的查询性能相对更稳定。因为 crc32 算出来的值虽然有冲突的概率，但是概率非常小。
+
+为字符串创建索引，可以使用一下方式
+- 直接创建完整索引，这样可能比较占用空间
+- 创建前缀索引，节省空间，但会增加查询扫描次数，并且不能使用覆盖索引
+- 倒序存储，再创建前缀索引，用于绕过字符串本身前缀的区分度不够的问题
+- 创建 hash 字段索引，查询性能稳定，有额外的存储和计算消耗，跟第三种方式一样，都不支持范围扫描
+
 
 
 
