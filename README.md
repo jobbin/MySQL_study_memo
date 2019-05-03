@@ -304,6 +304,43 @@ MySQL的行锁是在引擎层由各引擎实现，InnoDB有行锁
 - 倒序存储，再创建前缀索引，用于绕过字符串本身前缀的区分度不够的问题
 - 创建 hash 字段索引，查询性能稳定，有额外的存储和计算消耗，跟第三种方式一样，都不支持范围扫描
 
+## 12
+
+## 13 | 为什么表数据删掉一半，表文件大小不变？
+
+- innodb_file_per_table
+※ 从MySQL 5.6起 默认值为ON
+  - ON: 每个 InnoDB 表数据存储在一个以 .ibd 为后缀的文件中
+    - drop table命令删除表时，系统自动删除 .ibd 文件
+  - OFF: 表的数据放在系统共享表空间，也就是跟数据字典放在一起
+    - 就算drop table命令删除表，空间不会被回收
+
+- 当删除一条数据时，InnoDB引擎只会把这条记录标志为删除，之后可复用这条(磁盘的)这个位置
+  - 记录的复用，**只限于符合范围条件的数据**
+- 整个数据页被删除时也会被标志可复用，可复用任何位置
+  - 当两个相邻的的数据页利用率低的情况下，系统会将其中一页的数据合并到另一页中，然后将另一个数据页标志为可复用
+- 当删除整个表的数据时，所有的数据页将被标志为可复用，但磁盘上，文件不会变小
+
+- alter table A engine=InnoDB : 重建表
+  - MySQL 会自动完成转存数据、交换表名、删除旧表的操作
+  - MySQL 5.6 版本开始引入的 Online DDL
+    - tmp_file 是InnoDB在内部创建，这个DDL过程都在 InnoDB 内部完成，对于 server 层来说，没有把数据挪动到临时表，是一个“inplace”名称的来源。
+    - alter table A engine=InnoDB 隐含的意思是 **alter table t engine=innodb,ALGORITHM=inplace** ;
+
+![alter_table_A_engin=InnoDB](images/alter_table_A_engin=InnoDB.png)
+
+- alter table t engine=innodb,ALGORITHM=copy;
+  - 会在server层创建一个临时表, 而不是在临时文件
+
+- Online と inplace 的区别
+  - DDL 过程如果是 Online 的，就一定是 inplace
+  - 反过来未必，也就是说 inplace 的 DDL，有可能不是Online
+
+
+
+
+
+
 
 
 
