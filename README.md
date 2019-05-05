@@ -336,6 +336,66 @@ MySQL的行锁是在引擎层由各引擎实现，InnoDB有行锁
   - DDL 过程如果是 Online 的，就一定是 inplace
   - 反过来未必，也就是说 inplace 的 DDL，有可能不是Online
 
+## 14
+
+## 15
+
+## 16 | “order by”是怎么工作的？
+
+- 场景: 指定的字段排序来显示结果, 假设要查询城市是“杭州”的所有人名字，并且按照姓名排序返回前 1000 个人的姓名、年龄
+
+- 表的定义
+  ```
+  CREATE TABLE `t` (
+    `id` int(11) NOT NULL,
+    `city` varchar(16) NOT NULL,
+    `name` varchar(16) NOT NULL,
+    `age` int(11) NOT NULL,
+    `addr` varchar(128) DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `city` (`city`)
+  ) ENGINE=InnoDB;
+
+    ```
+
+- 执行语句
+  ```
+  select city,name,age from t where city='杭州' order by name limit 1000  ;
+
+  ```
+
+- MySQL 会给每个线程分配一块内存用于排序，称为 **sort_buffer**
+
+- 通常情况下的执行的流程
+  1. 初始化 sort_buffer，确定放入 name、city、age 这三个字段
+  1. 从索引 city 找到第一个满足 city='杭州’条件的主键 id 
+  1. 到主键 id 索引取出整行，取 name、city、age 三个字段的值，存入 sort_buffer 中
+  1. 从索引 city 取下一个记录的主键 id
+  1. 重复步骤 3、4 直到 city 的值不满足查询条件为止
+  1. 对 sort_buffer 中的数据按照字段 name 做快速排序
+  1. 按照排序结果取前 1000 行返回给客户端
+  ![sort_flow_1](images/sort_flow_1.png)
+
+- 排序的参数: sort_buffer_size
+  - sort_buffer_size 足够大的话，排序在内存中完成
+  - sort_buffer_size 不够大的话，排序利用磁盘临时文件辅助排序
+    - OPTIMIZER_TRACE 的结果中的 number_of_tmp_files 就是使用排序的临时文件数。该值为 0 时表示在内存中排序
+
+- 专门控制用于排序的行数据的长度的参数： max_length_for_sort_data
+  - 单行的长度超过这个值，MySQL 就认为单行太大，要换一个算法，只有要排序的列（即 name 字段）和主键 id 放入到 sort_buffer 里
+  - 流程
+    1. 初始化 sort_buffer，确定放入两个字段，即 nam和 id
+    1. 从索引 city 找到第一个满足 city='杭州’条件的主键 id
+    1. 到主键 id 索引取出整行，取 name、id 这两个字段存入 sort_buffer 中 
+    1. 从索引 city 取下一个记录的主键 id
+    1. 重复步骤 3、4 直到不满足 city='杭州’条件为止
+    1. 对 sort_buffer 中的数据按照字段 name 进行排序
+    1. 遍历排序结果，取前 1000 行，并按照 id 的值回到原表中取出 city、name 和 age 三个字段返回给客户端
+    ![sort_flow_1](images/sort_flow_2.png)
+
+
+
+
 
 
 
