@@ -393,6 +393,19 @@ MySQL的行锁是在引擎层由各引擎实现，InnoDB有行锁
     1. 遍历排序结果，取前 1000 行，并按照 id 的值回到原表中取出 city、name 和 age 三个字段返回给客户端
     ![sort_flow_1](images/sort_flow_2.png)
 
+## 17 | 如何正确地显示随机消息？
+
+- order by rand() 使用了内存临时表，内存临时表排序的时候使用了 rowid 排序方法
+
+- 内存临时表, 磁盘临时表
+  - tmp_table_size 这个配置限制了内存临时表的大小，默认值是 16M。如果临时表大小超过了 tmp_table_size，那么内存临时表就会转成磁盘临时表
+
+- 优先队列排序算法
+  - MySQL 5.6 引入的新算法
+  - 排序时没有用到临时文件
+
+- 随机查询语句: order by rand()
+  - 需要 Using temporary 和 Using filesort, 在设计的时候要量避开这种写法
 
 
 
